@@ -3,6 +3,18 @@ import random
 import pandas as pd
 import os
 from PIL import Image
+import requests
+
+@st.cache_data
+def fetch_scores():
+    api_key = st.secrets["DATAGOLF_API_KEY"]  # Stored securely in Streamlit secrets
+    url = f"https://feeds.datagolf.com/example-api-endpoint?example_param=10&key={api_key}"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        st.error("Error fetching live data.")
+        return []
 
 # Load logo
 logo = Image.open("masters_logo.png")
@@ -28,61 +40,22 @@ prize_money = {
     50: 52920
 }
 
-def simulate_scores(players):
-    scores = {}
-    for player in players:
-        rounds = [random.randint(68, 75) for _ in range(4)]
-        total = sum(rounds)
-        par = total - 288
-        scores[player] = {
-            "RD 1": rounds[0],
-            "RD 2": rounds[1],
-            "RD 3": rounds[2],
-            "RD 4": rounds[3],
-            "TOTAL": total,
-            "PAR": par
-        }
-    return scores
-
-def assign_positions_and_prizes(scores):
-    sorted_scores = sorted(scores.items(), key=lambda x: x[1]["TOTAL"])
-    final_scores = {}
-    current_position = 1
-    tie_group = []
-
-    for i, (player, data) in enumerate(sorted_scores):
-        if i > 0 and data["TOTAL"] == sorted_scores[i - 1][1]["TOTAL"]:
-            tie_group.append((player, data))
-        else:
-            if tie_group:
-                tie_group.append((player, data))
-                pos = current_position
-                next_pos = pos + len(tie_group)
-                total_prize = sum(prize_money.get(p, 0) for p in range(pos, next_pos))
-                prize_split = total_prize // len(tie_group)
-                for name, pdata in tie_group:
-                    pdata["POSITION"] = f"T{pos}"
-                    pdata["PRIZE"] = prize_split
-                    final_scores[name] = pdata
-                current_position += len(tie_group)
-                tie_group = []
-            else:
-                data["POSITION"] = current_position
-                data["PRIZE"] = prize_money.get(current_position, 0)
-                final_scores[player] = data
-                current_position += 1
-
-    if tie_group:
-        pos = current_position
-        next_pos = pos + len(tie_group)
-        total_prize = sum(prize_money.get(p, 0) for p in range(pos, next_pos))
-        prize_split = total_prize // len(tie_group)
-        for name, pdata in tie_group:
-            pdata["POSITION"] = f"T{pos}"
-            pdata["PRIZE"] = prize_split
-            final_scores[name] = pdata
-
-    return final_scores
+def get_live_scores_for_team(team, data):
+    player_scores = {}
+    for entry in data:
+        name = entry["player_name"]
+        if name in team:
+            player_scores[name] = {
+                "RD 1": entry["round_1"],
+                "RD 2": entry["round_2"],
+                "RD 3": entry["round_3"],
+                "RD 4": entry["round_4"],
+                "TOTAL": sum([entry["round_1"], entry["round_2"], entry["round_3"], entry["round_4"]]),
+                "PAR": sum([entry["round_1"], entry["round_2"], entry["round_3"], entry["round_4"]]) - 288,
+                "POSITION": entry["position"],
+                "PRIZE": f"${entry['prize_money']:,}"
+            }
+    return player_scores
 
 st.subheader("Enter Your Name")
 username = st.text_input("Your name (for leaderboard tracking):")
