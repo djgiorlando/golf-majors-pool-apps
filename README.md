@@ -1,2 +1,2 @@
-# golf-majors-pool-apps
-App for Golf Majors Pools
+# masters-pool-app
+App for Masters Tournament
